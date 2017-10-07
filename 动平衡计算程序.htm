@@ -1,0 +1,506 @@
+<html><head>
+<meta http-equiv="Content-Type" CONTENT="text/html; charset=gb2312">
+<meta name="Author" CONTENT="mengzesam@126.com QQ383238372">
+<meta name="Keywords" CONTENT="rotor balancing, javascript">
+
+<title>动平衡计算程序</title>
+
+<script language=javascript>
+//本计算源代码 copyright by mengzesen 
+//作者email： mengzesam@126.com
+
+
+
+//以下部分为mzs编写的人机界面接口子程序，2014-12-14 于武汉
+  var LsDivID=new Array("","div_onedisk","div_twodisk","div_harmonic","div_vecOperation","div_vecDecomp");
+  var onediskCalNum=0;
+  var AvgAQ=0;
+  var AvgAQ_=0;
+  var AvgPhiQ=0;
+  var AvgPhiQ_=0;  
+  var sss="";
+
+  function selCalType(SelVal){
+   var preSelVal;
+   preSelVal=parseInt(document.BalancingFrm.CalSel.value);
+   SelVal=parseInt(SelVal);
+   document.BalancingFrm.CalSel.value=SelVal;
+   document.getElementById(LsDivID[preSelVal]).style.display="none";
+   document.getElementById(LsDivID[SelVal]).style.display="inline";
+  }//end function
+
+  
+  function reSet(){
+    var curCalTypDiv,ELs;
+    sss="";
+    onediskCalNum=0;
+	curCalTypDiv=document.getElementById(LsDivID[parseInt(document.BalancingFrm.CalSel.value)]);
+	ELs=curCalTypDiv.getElementsByTagName('input');
+	for(var i = 0; i < ELs.length; i++){
+	  ELs[i].value="";
+	}
+	ELs=curCalTypDiv.getElementsByTagName('textarea');
+	for(var i = 0; i < ELs.length; i++){
+	  ELs[i].value="";
+	}
+    return true;
+  }//end function
+
+  
+  function calProcess(){
+   var CalTyp=1;
+   CalTyp=parseInt(document.BalancingFrm.CalSel.value);
+   switch(CalTyp){
+     case 1:
+	   cal_onedisk();
+	   break;
+	 case 2:
+	   cal_twodisk();
+	   break;
+	 case 3:
+	   cal_harmonic();
+	   break;
+	 case 4:
+	   fVecOperation();
+	   break;
+	 case 5:
+	   fVecDecompose();
+	   break;
+	 default:
+	   break;
+   }
+   return true;
+  }
+  
+ 
+  function cal_onedisk(){
+    var AA0,AA1,AP,AQ,AQ_,AAlpha;
+    var PhiA0,PhiA1,PhiP,PhiQ,PhiQ_,PhiAlpha;
+    AA0=parseFloat(document.BalancingFrm.onediskIn11.value);
+    AA1=parseFloat(document.BalancingFrm.onediskIn21.value);
+    AP=parseFloat(document.BalancingFrm.onediskIn31.value);
+    PhiA0=parseFloat(document.BalancingFrm.onediskIn12.value);
+    PhiA1=parseFloat(document.BalancingFrm.onediskIn22.value);
+    PhiP=parseFloat(document.BalancingFrm.onediskIn32.value);
+    AAlpha=vSub_ABS(AA1,PhiA1,AA0,PhiA0)/AP;    
+    PhiAlpha=(vSub_Argument(AA1,PhiA1,AA0,PhiA0)-PhiP+360) % 360;
+    AQ_=AA0/AAlpha;
+    PhiQ_=(PhiA0+180-PhiAlpha+360) % 360;
+    AQ=AA1/AAlpha;
+    PhiQ=(PhiA1+180-PhiAlpha+360) % 360;
+
+	onediskCalNum++;
+	if(onediskCalNum<=1){  
+      AvgAQ=AQ;
+      AvgAQ_=AQ_;
+      AvgPhiQ=PhiQ;
+      AvgPhiQ_=PhiQ_;
+	}else{
+	  tmp=vSub_ABS(AvgAQ,AvgPhiQ,AQ,PhiQ+180)/2;
+	  AvgPhiQ=vSub_Argument(AvgAQ,AvgPhiQ,AQ,PhiQ+180);
+	  AvgAQ=tmp;
+	  tmp=vSub_ABS(AvgAQ_,AvgPhiQ_,AQ_,PhiQ_+180)/2;
+	  AvgPhiQ_=vSub_Argument(AvgAQ_,AvgPhiQ_,AQ_,PhiQ_+180);
+	  AvgAQ_=tmp;
+	}
+    sss+="第"+onediskCalNum+"组:\n";
+    sss+="加重Q(去试重):"+AQ_.toFixed(2)+" g @"+PhiQ_.toFixed(2)+"°\n";
+    sss+="加重Q(不去试重):"+AQ.toFixed(2)+" g @"+PhiQ.toFixed(2)+"°\n";
+	document.BalancingFrm.onediskTxt.value="平均值Q(去试重):"+AvgAQ_.toFixed(2)+" g @"+AvgPhiQ_.toFixed(2)+"°\n";
+	document.BalancingFrm.onediskTxt.value+="平均值Q(不去试重):"+AvgAQ.toFixed(2)+" g @"+AvgPhiQ.toFixed(2)+"°\n"+sss;
+
+    document.BalancingFrm.onediskIn41.value=AAlpha.toFixed(4);
+    document.BalancingFrm.onediskIn42.value=PhiAlpha.toFixed(2);
+    document.BalancingFrm.onediskIn51.value=AQ_.toFixed(2);
+    document.BalancingFrm.onediskIn52.value=PhiQ_.toFixed(2);
+    document.BalancingFrm.onediskIn61.value=AQ.toFixed(2);
+    document.BalancingFrm.onediskIn62.value=PhiQ.toFixed(2);
+
+  }//end function
+
+
+  function cal_twodisk(){
+    var AA0,AB0,AA1,AB1,AA2,AB2,AP1,AP2,AQ1,AQ2,AQ1_,AQ2_;
+	var AAlpha11,AAlpha12,AAlpha21,AAlpha22;
+    var PhiA0,PhiB0,PhiA1,PhiB1,PhiA2,PhiB2,PhiP1,PhiP2,PhiQ1,PhiQ2;
+	var PhiQ1_,PhiQ2_,PhiAlpha11,PhiAlpha12,PhiAlpha21,PhiAlpha22;
+	var delP1,tmp,V1,V2,V0,Phi1,Phi2,Phi0;
+    AA0=parseFloat(document.BalancingFrm.twodiskIn11.value);
+    AB0=parseFloat(document.BalancingFrm.twodiskIn21.value);
+    AP1=parseFloat(document.BalancingFrm.twodiskIn31.value);
+    AA1=parseFloat(document.BalancingFrm.twodiskIn41.value);
+    AB1=parseFloat(document.BalancingFrm.twodiskIn51.value);
+    AP2=parseFloat(document.BalancingFrm.twodiskIn61.value);
+    AA2=parseFloat(document.BalancingFrm.twodiskIn71.value);
+    AB2=parseFloat(document.BalancingFrm.twodiskIn81.value);
+    delP1=parseInt(document.BalancingFrm.twodisk_delP1.options[document.BalancingFrm.twodisk_delP1.selectedIndex].value);	
+	PhiA0=parseFloat(document.BalancingFrm.twodiskIn12.value);
+	PhiB0=parseFloat(document.BalancingFrm.twodiskIn22.value);
+	PhiP1=parseFloat(document.BalancingFrm.twodiskIn32.value);
+	PhiA1=parseFloat(document.BalancingFrm.twodiskIn42.value);
+	PhiB1=parseFloat(document.BalancingFrm.twodiskIn52.value);
+	PhiP2=parseFloat(document.BalancingFrm.twodiskIn62.value);
+	PhiA2=parseFloat(document.BalancingFrm.twodiskIn72.value);
+	PhiB2=parseFloat(document.BalancingFrm.twodiskIn82.value);
+    AAlpha11=vSub_ABS(AA1,PhiA1,AA0,PhiA0)/AP1;    
+    PhiAlpha11=(vSub_Argument(AA1,PhiA1,AA0,PhiA0)-PhiP1+360) % 360;
+    AAlpha21=vSub_ABS(AB1,PhiB1,AB0,PhiB0)/AP1;    
+    PhiAlpha21=(vSub_Argument(AB1,PhiB1,AB0,PhiB0)-PhiP1+360) % 360;
+	if(delP1==1){
+		AAlpha12=vSub_ABS(AA2,PhiA2,AA0,PhiA0)/AP2;    
+		PhiAlpha12=(vSub_Argument(AA2,PhiA2,AA0,PhiA0)-PhiP2+360) % 360;
+		AAlpha22=vSub_ABS(AB2,PhiB2,AB0,PhiB0)/AP2;    
+		PhiAlpha22=(vSub_Argument(AB2,PhiB2,AB0,PhiB0)-PhiP2+360) % 360;	  
+	}else{
+		AAlpha12=vSub_ABS(AA2,PhiA2,AA1,PhiA1)/AP2;    
+		PhiAlpha12=(vSub_Argument(AA2,PhiA2,AA1,PhiA1)-PhiP2+360) % 360;
+		AAlpha22=vSub_ABS(AB2,PhiB2,AB1,PhiB1)/AP2;    
+		PhiAlpha22=(vSub_Argument(AB2,PhiB2,AB1,PhiB1)-PhiP2+360) % 360;
+	}
+	document.BalancingFrm.twodiskIn91.value=AAlpha11.toFixed(4);
+	document.BalancingFrm.twodiskIn101.value=AAlpha12.toFixed(4);
+	document.BalancingFrm.twodiskIn111.value=AAlpha21.toFixed(4);
+	document.BalancingFrm.twodiskIn121.value=AAlpha22.toFixed(4);
+	document.BalancingFrm.twodiskIn92.value=PhiAlpha11.toFixed(2);
+	document.BalancingFrm.twodiskIn102.value=PhiAlpha12.toFixed(2);
+	document.BalancingFrm.twodiskIn112.value=PhiAlpha21.toFixed(2);
+	document.BalancingFrm.twodiskIn122.value=PhiAlpha22.toFixed(2);
+    V1=AAlpha11*AAlpha22;
+	V2=AAlpha12*AAlpha21;
+	Phi1=PhiAlpha11+PhiAlpha22;
+	Phi2=PhiAlpha12+PhiAlpha21;
+	V0=vSub_ABS(V1,Phi1,V2,Phi2);    
+    Phi0=(vSub_Argument(V1,Phi1,V2,Phi2)+360) % 360;
+	V0=1/V0;    
+    Phi0=(-Phi0+360) % 360;
+    tmp=AAlpha11;
+    AAlpha11=AAlpha22;
+    AAlpha22=tmp;
+	tmp=PhiAlpha11;
+    PhiAlpha11=PhiAlpha22;
+    PhiAlpha22=tmp;
+    PhiAlpha12+=180;
+    PhiAlpha21+=180;
+
+	if(delP1==1){
+		V1=AAlpha11*AA0;
+		V2=AAlpha12*AB0;
+		Phi1=PhiAlpha11+PhiA0+180;
+		Phi2=PhiAlpha12+PhiB0+180;
+	}else{
+		V1=AAlpha11*AA1;
+		V2=AAlpha12*AB1;
+		Phi1=PhiAlpha11+PhiA1+180;
+		Phi2=PhiAlpha12+PhiB1+180; 
+	}
+	AQ1_=vSub_ABS(V1,Phi1,V2,Phi2+180);
+	PhiQ1_=(vSub_Argument(V1,Phi1,V2,Phi2+180)+360) % 360;
+	AQ1_*=V0;
+	PhiQ1_=(PhiQ1_+Phi0+360)%360;
+	if(delP1==1){
+		V1=AAlpha21*AA0;
+		V2=AAlpha22*AB0;
+		Phi1=PhiAlpha21+PhiA0+180;
+		Phi2=PhiAlpha22+PhiB0+180;
+	}else{
+		V1=AAlpha21*AA1;
+		V2=AAlpha22*AB1;
+		Phi1=PhiAlpha21+PhiA1+180;
+		Phi2=PhiAlpha22+PhiB1+180;
+	}
+	AQ2_=vSub_ABS(V1,Phi1,V2,Phi2+180);
+	PhiQ2_=(vSub_Argument(V1,Phi1,V2,Phi2+180)+360) % 360;
+	AQ2_*=V0;
+	PhiQ2_=(PhiQ2_+Phi0+360)%360;
+
+	V1=AAlpha11*AA2;
+	V2=AAlpha12*AB2;
+	Phi1=PhiAlpha11+PhiA2+180;
+	Phi2=PhiAlpha12+PhiB2+180;
+	AQ1=vSub_ABS(V1,Phi1,V2,Phi2+180);
+	PhiQ1=(vSub_Argument(V1,Phi1,V2,Phi2+180)+360) % 360;
+	AQ1*=V0;
+	PhiQ1=(PhiQ1+Phi0+360)%360;
+	V1=AAlpha21*AA2;
+	V2=AAlpha22*AB2;
+	Phi1=PhiAlpha21+PhiA2+180;
+	Phi2=PhiAlpha22+PhiB2+180;
+	AQ2=vSub_ABS(V1,Phi1,V2,Phi2+180);
+	PhiQ2=(vSub_Argument(V1,Phi1,V2,Phi2+180)+360) % 360;
+	AQ2*=V0;
+	PhiQ2=(PhiQ2+Phi0+360)%360;
+	
+
+	document.BalancingFrm.twodiskIn131.value=AQ1_.toFixed(2);
+	document.BalancingFrm.twodiskIn132.value=PhiQ1_.toFixed(2);
+	document.BalancingFrm.twodiskIn141.value=AQ2_.toFixed(2);
+	document.BalancingFrm.twodiskIn142.value=PhiQ2_.toFixed(2);
+	document.BalancingFrm.twodiskIn151.value=AQ1.toFixed(2);
+	document.BalancingFrm.twodiskIn152.value=PhiQ1.toFixed(2);
+	document.BalancingFrm.twodiskIn161.value=AQ2.toFixed(2);
+	document.BalancingFrm.twodiskIn162.value=PhiQ2.toFixed(2);
+  }//end function
+  
+  function cal_harmonic(){
+    var AA0,AB0,AA1,AB1,AA2,AB2,AP1,AP2,AAz0,AAf0,AAz1,AAf1;
+    var APz,APf,AQz,AQf,AQ1,AQ2,AAlphaZ,AAlphaF;
+    var PhiA0,PhiB0,PhiA1,PhiB1,PhiA2,PhiB2,PhiP1,PhiP2,PhiAz0,PhiAf0,PhiAz1,PhiAf1;
+    var PhiPz,PhiPf,PhiQz,PhiQf,PhiQ1,PhiQ2,PhiAlphaZ,PhiAlphaF;
+    var delP;
+    AA0=parseFloat(document.BalancingFrm.harmonicIn11.value);
+    AB0=parseFloat(document.BalancingFrm.harmonicIn21.value);
+    AP1=parseFloat(document.BalancingFrm.harmonicIn31.value);
+    AP2=parseFloat(document.BalancingFrm.harmonicIn41.value);
+    AA1=parseFloat(document.BalancingFrm.harmonicIn51.value);
+    AB1=parseFloat(document.BalancingFrm.harmonicIn61.value);
+    PhiA0=parseFloat(document.BalancingFrm.harmonicIn12.value);
+    PhiB0=parseFloat(document.BalancingFrm.harmonicIn22.value);
+    PhiP1=parseFloat(document.BalancingFrm.harmonicIn32.value);
+    PhiP2=parseFloat(document.BalancingFrm.harmonicIn42.value);
+    PhiA1=parseFloat(document.BalancingFrm.harmonicIn52.value);
+    PhiB1=parseFloat(document.BalancingFrm.harmonicIn62.value);
+	delP=parseInt(document.BalancingFrm.harmonic_delP.options[document.BalancingFrm.harmonic_delP.selectedIndex].value);	
+    AAz0=vSub_ABS(AA0,PhiA0,AB0,PhiB0+180)/2;
+    AAf0=vSub_ABS(AA0,PhiA0,AB0,PhiB0)/2;
+	PhiAz0=(vSub_Argument(AA0,PhiA0,AB0,PhiB0+180)+360)%360;
+	PhiAf0=(vSub_Argument(AA0,PhiA0,AB0,PhiB0)+360)%360;
+	APz=vSub_ABS(AP1,PhiP1,AP2,PhiP2+180)/2;
+	APf=vSub_ABS(AP1,PhiP1,AP2,PhiP2)/2;
+	PhiPz=(vSub_Argument(AP1,PhiP1,AP2,PhiP2+180)+360)%360;
+	PhiPf=(vSub_Argument(AP1,PhiP1,AP2,PhiP2)+360)%360;
+    AAz1=vSub_ABS(AA1,PhiA1,AB1,PhiB1+180)/2;
+    AAf1=vSub_ABS(AA1,PhiA1,AB1,PhiB1)/2;
+	PhiAz1=(vSub_Argument(AA1,PhiA1,AB1,PhiB1+180)+360)%360;
+	PhiAf1=(vSub_Argument(AA1,PhiA1,AB1,PhiB1)+360)%360;
+    AAlphaZ=vSub_ABS(AAz1,PhiAz1,AAz0,PhiAz0)/APz;
+    PhiAlphaZ=(vSub_Argument(AAz1,PhiAz1,AAz0,PhiAz0)-PhiPz+360)%360;
+    AAlphaF=vSub_ABS(AAf1,PhiAf1,AAf0,PhiAf0)/APf;
+    PhiAlphaF=(vSub_Argument(AAf1,PhiAf1,AAf0,PhiAf0)-PhiPf+360)%360;
+	if(delP==1){
+		AQz=AAz0/AAlphaZ;
+		PhiQz=(PhiAz0+180-PhiAlphaZ+360)%360;
+		AQf=AAf0/AAlphaF;
+		PhiQf=(PhiAf0+180-PhiAlphaF+360)%360;
+	}else{
+		AQz=AAz1/AAlphaZ;
+		PhiQz=(PhiAz1+180-PhiAlphaZ+360)%360;
+		AQf=AAf1/AAlphaF;
+		PhiQf=(PhiAf1+180-PhiAlphaF+360)%360;
+	}
+	AQ1=vSub_ABS(AQz,PhiQz,AQf,PhiQf+180);
+	PhiQ1=(vSub_Argument(AQz,PhiQz,AQf,PhiQf+180)+360)%360;
+	AQ2=vSub_ABS(AQz,PhiQz,AQf,PhiQf);
+	PhiQ2=(vSub_Argument(AQz,PhiQz,AQf,PhiQf)+360)%360;
+
+    document.BalancingFrm.harmonicIn71.value=AAz0.toFixed(2);
+    document.BalancingFrm.harmonicIn81.value=AAf0.toFixed(2);
+    document.BalancingFrm.harmonicIn91.value=APz.toFixed(2);
+    document.BalancingFrm.harmonicIn101.value=APf.toFixed(2);
+    document.BalancingFrm.harmonicIn111.value=AAz1.toFixed(2);
+    document.BalancingFrm.harmonicIn121.value=AAf1.toFixed(2);
+    document.BalancingFrm.harmonicIn131.value=AAlphaZ.toFixed(4);
+    document.BalancingFrm.harmonicIn141.value=AAlphaF.toFixed(4);
+    document.BalancingFrm.harmonicIn151.value=AQz.toFixed(2);
+    document.BalancingFrm.harmonicIn161.value=AQf.toFixed(2);
+    document.BalancingFrm.harmonicIn171.value=AQ1.toFixed(2);
+    document.BalancingFrm.harmonicIn181.value=AQ2.toFixed(2);
+    document.BalancingFrm.harmonicIn72.value=PhiAz0.toFixed(2);
+    document.BalancingFrm.harmonicIn82.value=PhiAf0.toFixed(2);
+    document.BalancingFrm.harmonicIn92.value=PhiPz.toFixed(2);
+    document.BalancingFrm.harmonicIn102.value=PhiPf.toFixed(2);
+    document.BalancingFrm.harmonicIn112.value=PhiAz1.toFixed(2);
+    document.BalancingFrm.harmonicIn122.value=PhiAf1.toFixed(2);
+    document.BalancingFrm.harmonicIn132.value=PhiAlphaZ.toFixed(2);
+    document.BalancingFrm.harmonicIn142.value=PhiAlphaF.toFixed(2);
+    document.BalancingFrm.harmonicIn152.value=PhiQz.toFixed(2);
+    document.BalancingFrm.harmonicIn162.value=PhiQf.toFixed(2);
+    document.BalancingFrm.harmonicIn172.value=PhiQ1.toFixed(2);
+    document.BalancingFrm.harmonicIn182.value=PhiQ2.toFixed(2);
+  }
+ 
+  function fVecOperation(){
+    var AV1,AV2,AV,PhiV1,PhiV2,PhiV;
+	var opSym;
+    AV1=parseFloat(document.BalancingFrm.vecOperationIn11.value);
+    AV2=parseFloat(document.BalancingFrm.vecOperationIn21.value);
+    PhiV1=parseFloat(document.BalancingFrm.vecOperationIn12.value);
+    PhiV2=parseFloat(document.BalancingFrm.vecOperationIn22.value);
+    opSym=parseInt(document.BalancingFrm.vecOperationSym.options[document.BalancingFrm.vecOperationSym.selectedIndex].value);
+	switch(opSym){
+     case 1:
+	   PhiV2+=180;
+	   AV=vSub_ABS(AV1,PhiV1,AV2,PhiV2);
+       PhiV=(vSub_Argument(AV1,PhiV1,AV2,PhiV2)+360) % 360;
+	   document.BalancingFrm.vecOperationIn31.value=AV.toFixed(4);
+	   document.BalancingFrm.vecOperationIn32.value=PhiV.toFixed(4);
+	   break;
+     case 2:
+	   AV=vSub_ABS(AV1,PhiV1,AV2,PhiV2);
+       PhiV=(vSub_Argument(AV1,PhiV1,AV2,PhiV2)+360) % 360;
+	   document.BalancingFrm.vecOperationIn31.value=AV.toFixed(4);
+	   document.BalancingFrm.vecOperationIn32.value=PhiV.toFixed(4);
+	   break;
+     case 3:
+	   AV=AV1*AV2;
+       PhiV=(PhiV1+PhiV2+360) % 360;
+	   document.BalancingFrm.vecOperationIn31.value=AV.toFixed(4);
+	   document.BalancingFrm.vecOperationIn32.value=PhiV.toFixed(4);
+	   break;
+     case 4:
+	   if(Math.abs(AV2)<0.00000001){
+		   document.BalancingFrm.vecOperationIn31.value="divisor 0";
+		   document.BalancingFrm.vecOperationIn32.value="divisor 0";
+	     
+	   }
+	   else{
+		   AV=AV1/AV2;
+		   PhiV=(PhiV1-PhiV2+360) % 360;
+		   document.BalancingFrm.vecOperationIn31.value=AV.toFixed(4);
+		   document.BalancingFrm.vecOperationIn32.value=PhiV.toFixed(4);
+		}
+	   break;
+	 default:
+	   break;
+	}
+  }//end function
+
+  function fVecDecompose(){
+    var AV1,AV2,AVZ,AVF,PhiV1,PhiV2,PhiVZ,PhiVF;
+    AV1=parseFloat(document.BalancingFrm.vecDecompIn11.value);
+    AV2=parseFloat(document.BalancingFrm.vecDecompIn21.value);
+    PhiV1=parseFloat(document.BalancingFrm.vecDecompIn12.value);
+    PhiV2=parseFloat(document.BalancingFrm.vecDecompIn22.value);
+    AVZ=(vSub_ABS(AV1,PhiV1,AV2,PhiV2+180))/2;
+    PhiVZ=(vSub_Argument(AV1,PhiV1,AV2,PhiV2+180)+360) % 360;
+	AVF=(vSub_ABS(AV1,PhiV1,AV2,PhiV2))/2;
+    PhiVF=(vSub_Argument(AV1,PhiV1,AV2,PhiV2)+360) % 360;
+	document.BalancingFrm.vecDecompIn31.value=AVZ.toFixed(4);
+	document.BalancingFrm.vecDecompIn32.value=PhiVZ.toFixed(4);
+	document.BalancingFrm.vecDecompIn41.value=AVF.toFixed(4);
+	document.BalancingFrm.vecDecompIn42.value=PhiVF.toFixed(4);
+  }//end function
+
+
+
+function vSub_ABS(vABS2,vArgument2,vABS1,vArgument1){
+   var rl,im;
+   rl=vABS2*Math.cos(vArgument2*Math.PI/180)-vABS1*Math.cos(vArgument1*Math.PI/180);
+   im=vABS2*Math.sin(vArgument2*Math.PI/180)-vABS1*Math.sin(vArgument1*Math.PI/180);
+   return Math.pow(rl*rl+im*im,0.5);
+} 
+
+function vSub_Argument(vABS2,vArgument2,vABS1,vArgument1){
+   var rl,im;
+   rl=vABS2*Math.cos(vArgument2*Math.PI/180)-vABS1*Math.cos(vArgument1*Math.PI/180);
+   im=vABS2*Math.sin(vArgument2*Math.PI/180)-vABS1*Math.sin(vArgument1*Math.PI/180);
+   return vARGUMENT(rl,im);
+} 
+
+
+function vARGUMENT(rl,im){
+   var radian;
+   if(Math.abs(rl)<0.00000001){
+      if(im>0)
+        radian=Math.PI/2;
+      else
+       radian=-Math.PI/2;
+    }else
+    {
+      radian=Math.atan(im/rl);
+      if(rl<0) radian=radian+Math.PI;
+    }  
+   return radian*180/Math.PI;
+  }
+
+//end mzs内容
+
+</script>
+</head>
+
+<body>
+<form name=BalancingFrm>
+   选择类型：
+   <select name=CalType onChange="selCalType(CalType.options[CalType.selectedIndex].value)">
+      <option value=1 selected > 单面平衡
+      <option value=2 > 双面平衡 
+      <option value=3 > 谐分量
+	  <option value=4 > 矢量运算
+      <option value=5 > 正反对称分解
+    </select>
+	<input type=button onclick="calProcess()" name="CalBtn" value="计算" >&nbsp&nbsp&nbsp
+	<input type=button onclick="reSet()" name="resetBtn" value="重置" >
+    <input type=hidden name=CalSel value=1>
+	<br>
+    <div id="div_onedisk" name="1111">
+		原始振动A0:<input type=text name="onediskIn11" size=8> um @ <input type=text name="onediskIn12" size=8>°<br>
+		试加重后振动A1:<input type=text name="onediskIn21" size=8> um @ <input type=text name="onediskIn22" size=8>°<br>
+		试加重P:<input type=text name="onediskIn31" size=8> g@ <input type=text name="onediskIn32" size=8>°<br>
+		影响系数α:<input type=text name="onediskIn41" size=8> @ <input type=text name="onediskIn42" size=8>°<br>
+		加重量Q(去试重):<input type=text name="onediskIn51" size=8> g@ <input type=text name="onediskIn52" size=8>°<br>
+		加重量Q(不去试重):<input type=text name="onediskIn61" size=8> g@ <input type=text name="onediskIn62" size=8>°<br>
+		<textarea name="onediskTxt" rows=20 cols=40 style="overflow-x:auto;overflow-y:scroll" wrap="off" readonly="readonly"></textarea>
+     </div>
+	 <div id="div_twodisk" style=display:none>
+		原始振动A0:<input type=text name="twodiskIn11" size=8> um @ <input type=text name="twodiskIn12" size=8>°<br>
+		原始振动B0:<input type=text name="twodiskIn21" size=8> um @ <input type=text name="twodiskIn22" size=8>°<br>
+		I面试加重P1:<input type=text name="twodiskIn31" size=8> g@ <input type=text name="twodiskIn32" size=8>°<br>
+		加重P1后振动A1:<input type=text name="twodiskIn41" size=8> um @ <input type=text name="twodiskIn42" size=8>°<br>
+		加重P1后振动B1:<input type=text name="twodiskIn51" size=8> um @ <input type=text name="twodiskIn52" size=8>°<br>
+        II面加重是否取下I面P1:<select name=twodisk_delP1><option value=1 selected >是<option value=2>否</select><br>
+		II面试加重P2:<input type=text name="twodiskIn61" size=8> g@ <input type=text name="twodiskIn62" size=8>°<br>
+		加重P2后振动A2:<input type=text name="twodiskIn71" size=8> um @ <input type=text name="twodiskIn72" size=8>°<br>
+		加重P2后振动B2:<input type=text name="twodiskIn81" size=8> um @ <input type=text name="twodiskIn82" size=8>°<br> 
+		影响系数α11:<input type=text name="twodiskIn91" size=8> @ <input type=text name="twodiskIn92" size=8>°<br>	
+		影响系数α12:<input type=text name="twodiskIn101" size=8> @ <input type=text name="twodiskIn102" size=8>°<br>
+		影响系数α21:<input type=text name="twodiskIn111" size=8> @ <input type=text name="twodiskIn112" size=8>°<br>	
+		影响系数α22:<input type=text name="twodiskIn121" size=8> @ <input type=text name="twodiskIn122" size=8>°<br>
+		I面加重Q1(去重P2):<input type=text name="twodiskIn131" size=8> g@ <input type=text name="twodiskIn132" size=8>°<br>
+		II面加重Q2(去重P2):<input type=text name="twodiskIn141" size=8> g@ <input type=text name="twodiskIn142" size=8>°<br>
+		I面加重Q1(不去重P2):<input type=text name="twodiskIn151" size=8> g@ <input type=text name="twodiskIn152" size=8>°<br>
+		II面加重Q2(不去重P2):<input type=text name="twodiskIn161" size=8> g@ <input type=text name="twodiskIn162" size=8>°<br>
+     </div>
+	 <div id="div_harmonic" style=display:none>
+		原始振动A0:<input type=text name="harmonicIn11" size=8> um @ <input type=text name="harmonicIn12" size=8>°<br>
+		原始振动B0:<input type=text name="harmonicIn21" size=8> um @ <input type=text name="harmonicIn22" size=8>°<br>
+		I面试加P1:<input type=text name="harmonicIn31" size=8> g@ <input type=text name="harmonicIn32" size=8>°<br>
+		II面试加P2:<input type=text name="harmonicIn41" size=8> g@ <input type=text name="harmonicIn42" size=8>°<br>
+		试加后振动A1:<input type=text name="harmonicIn51" size=8> um @ <input type=text name="harmonicIn52" size=8>°<br>
+		试加后振动B1:<input type=text name="harmonicIn61" size=8> um @ <input type=text name="harmonicIn62" size=8>°<br>
+		原始正对称分量Az0:<input type=text name="harmonicIn71" size=8> um @ <input type=text name="harmonicIn72" size=8>°<br>
+		原始反对称分量Af0:<input type=text name="harmonicIn81" size=8> um @ <input type=text name="harmonicIn82" size=8>°<br>
+		试加正对称分量Pz:<input type=text name="harmonicIn91" size=8> g@ <input type=text name="harmonicIn92" size=8>°<br>
+		试加反对称分量Pf:<input type=text name="harmonicIn101" size=8> g@ <input type=text name="harmonicIn102" size=8>°<br>
+		试加后正对称分量Az1:<input type=text name="harmonicIn111" size=8> um @ <input type=text name="harmonicIn112" size=8>°<br>
+		试加后反对称分量Af1:<input type=text name="harmonicIn121" size=8> um @ <input type=text name="harmonicIn122" size=8>°<br>
+		正对称影响系数αz:<input type=text name="harmonicIn131" size=8> @ <input type=text name="harmonicIn132" size=8>°<br>	
+		反对称影响系数αf:<input type=text name="harmonicIn141" size=8> @ <input type=text name="harmonicIn142" size=8>°<br>	
+		是否取下试加重:<select name="harmonic_delP"><option value=1 selected >是<option value=2>否</select><br>
+		加重正对称分量Qz:<input type=text name="harmonicIn151" size=8> g@ <input type=text name="harmonicIn152" size=8>°<br>
+		加重反对称分量Qf:<input type=text name="harmonicIn161" size=8> g@ <input type=text name="harmonicIn162" size=8>°<br>
+		I面合成平衡加重量Q1:<input type=text name="harmonicIn171" size=8> g@ <input type=text name="harmonicIn172" size=8>°<br>
+		II面合成平衡加重量Q2:<input type=text name="harmonicIn181" size=8> g@ <input type=text name="harmonicIn182" size=8>°<br>	
+     </div>
+	 <div id="div_vecOperation" style=display:none>
+		矢量V1:<input type=text name="vecOperationIn11" size=8> @ <input type=text name="vecOperationIn12" size=8>°<br>
+		运算符:<select name=vecOperationSym>
+				  <option value=1 >+
+				  <option value=2 selected > - 
+				  <option value=3 > × 
+				  <option value=4 > ÷
+			   </select><br>
+		矢量V2:<input type=text name="vecOperationIn21" size=8> @ <input type=text name="vecOperationIn22" size=8>°<br>
+		结果V:<input type=text name="vecOperationIn31" size=8> @ <input type=text name="vecOperationIn32" size=8>°<br>		
+     </div>
+	 <div id="div_vecDecomp" style=display:none>
+		矢量V1:<input type=text name="vecDecompIn11" size=8> @ <input type=text name="vecDecompIn12" size=8>°<br>
+		矢量V2:<input type=text name="vecDecompIn21" size=8> @ <input type=text name="vecDecompIn22" size=8>°<br>
+		正对称分量VZ:<input type=text name="vecDecompIn31" size=8> @ <input type=text name="vecDecompIn32" size=8>°<br>
+		反对称分量VF:<input type=text name="vecDecompIn41" size=8> @ <input type=text name="vecDecompIn42" size=8>°<br>			
+     </div>
+ </form>
+
+
+<font color=red>Copyright by：mengzesam@126.com</font>
+</body> </html>
+
+
